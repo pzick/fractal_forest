@@ -1,3 +1,23 @@
+# Copyright 2021 Peter Zick
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import bpy
 from math import degrees, radians, sin, cos
 from random import random, seed
@@ -11,7 +31,8 @@ def print_debug(s):
         print(s)
 
 
-def branch(length, angle, depth, iterations, reduce, bend_angle, index_start, vertices, edges, faces):
+def branch(length, angle, depth, iterations, reduce, bend_angle, index_start,
+        vertices, edges, faces):
     global index
     if depth > iterations:
         return -1
@@ -25,12 +46,15 @@ def branch(length, angle, depth, iterations, reduce, bend_angle, index_start, ve
     z = vertices[edge_start][2] + curr_length * cos(curr_angle + bend_angle)
     vertices.append((x, y, z))
     index += 1
-    print_debug('--> depth: {}, edge_start: {}, index: {}, angle: {}, y: {}, z: {}'.format(depth, edge_start, index, degrees(curr_angle), y, z))
+    print_debug(
+        '--> depth: {}, edge_start: {}, index: {}, angle: {}, y: {}, z: {}'
+        .format(depth, edge_start, index, degrees(curr_angle), y, z))
     curr_index = index
     edges.append([edge_start, index])
 
     print_debug('next right')
-    branch(curr_length - reduce, curr_angle + bend_angle, depth + 1, iterations, reduce, bend_angle, curr_index, vertices, edges, faces)
+    branch(curr_length - reduce, curr_angle + bend_angle, depth + 1,
+        iterations, reduce, bend_angle, curr_index, vertices, edges, faces)
 
     # Add left branch
     x = vertices[edge_start][0]
@@ -38,12 +62,15 @@ def branch(length, angle, depth, iterations, reduce, bend_angle, index_start, ve
     z = vertices[edge_start][2] + curr_length * cos(curr_angle - bend_angle)
     vertices.append((x, y, z))
     index += 1
-    print_debug('<-- depth: {}, edge_start: {}, index: {}, angle: {}, y: {}, z: {}'.format(depth, edge_start, index, degrees(curr_angle), y, z))
+    print_debug(
+        '<-- depth: {}, edge_start: {}, index: {}, angle: {}, y: {}, z: {}'
+        .format(depth, edge_start, index, degrees(curr_angle), y, z))
     curr_index = index
     edges.append([edge_start, index])
-    
+
     print_debug('next left')
-    branch(curr_length - reduce, curr_angle - bend_angle, depth + 1, iterations, reduce, bend_angle, curr_index, vertices, edges, faces)
+    branch(curr_length - reduce, curr_angle - bend_angle, depth + 1,
+        iterations, reduce, bend_angle, curr_index, vertices, edges, faces)
 
 
 def make_tree(angle, iterations, reduce, start_length, location):
@@ -62,7 +89,8 @@ def make_tree(angle, iterations, reduce, start_length, location):
     edges.append([0, 1])
 
     # Build the tree mesh
-    branch(start_length, 0, 0, iterations, reduce, bend_angle, index, vertices, edges, faces)
+    branch(start_length, 0, 0, iterations, reduce, bend_angle,
+        index, vertices, edges, faces)
 
     new_mesh = bpy.data.meshes.new('new_mesh')
     new_mesh.from_pydata(vertices, edges, faces)
@@ -81,13 +109,20 @@ def make_tree(angle, iterations, reduce, start_length, location):
         bpy.context.active_object.select_set(False)
     bpy.context.view_layer.objects.active = None
     bpy.context.scene.objects[new_object.name].select_set(True)
-    bpy.context.view_layer.objects.active = bpy.context.scene.objects[new_object.name]
+    bpy.context.view_layer.objects.active = \
+        bpy.context.scene.objects[new_object.name]
     bpy.ops.object.convert(target='CURVE')
     new_object.data.bevel_depth = 0.2
     new_object.data.bevel_resolution = 6
     new_object.data.use_fill_caps = True
 
-    # Only generate the material once, then reuse it for the other generated trees
+    # Clear out the old meshes now that they have been converted to curves
+    for m in bpy.data.meshes:
+        if m.name.find('new_mesh') >= 0:
+            bpy.data.meshes.remove(m)
+
+    # Only generate the material once, then reuse it for the other
+    # generated trees
     if 'Trees' not in bpy.data.materials.keys():
         mat = bpy.data.materials.new('Trees')
         mat.use_nodes = True
@@ -96,7 +131,7 @@ def make_tree(angle, iterations, reduce, start_length, location):
         mat.blend_method = 'OPAQUE'
         mat_nodes = mat.node_tree.nodes
         princ_bsdf = mat_nodes['Principled BSDF']
-        
+
         princ_bsdf.inputs['Base Color'].default_value = 0.027, 0.326, 0.027, 1.0
         princ_bsdf.inputs['Specular'].default_value = 0.1
         princ_bsdf.inputs['Roughness'].default_value = 0.95
@@ -129,9 +164,9 @@ def make_tree(angle, iterations, reduce, start_length, location):
 
         # Connect the shader nodes
         links = mat.node_tree.links
+        links.new(obj_info.outputs['Random'], mult_add.inputs[0])
         links.new(obj_info.outputs['Random'], color_ramp01.inputs[0])
         links.new(obj_info.outputs['Random'], color_ramp02.inputs[0])
-        links.new(obj_info.outputs['Random'], mult_add.inputs[0])
         links.new(mult_add.outputs[0], hsl.inputs[3])
         links.new(color_ramp01.outputs['Color'], hsl.inputs['Color'])
         links.new(hsl.outputs[0], princ_bsdf.inputs[0])
@@ -182,6 +217,9 @@ def clean():
     for m in bpy.data.meshes:
         if m.name.find('new_mesh') >= 0:
             bpy.data.meshes.remove(m)
+    for c in bpy.data.curves:
+        if c.name.find('new_object') >= 0:
+            bpy.data.curves.remove(c)
 
 # Remove any previously generated trees and associated materials
 clean()
